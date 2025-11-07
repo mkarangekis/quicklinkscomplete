@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuickLinks - Professional URL Shortener</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .hero {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 60px 20px;
+            text-align: center;
+            color: white;
+        }
+
+        .hero h1 {
+            font-size: 4em;
+            margin-bottom: 20px;
+            font-weight: 800;
+        }
+
+        .hero p {
+            font-size: 1.5em;
+            margin-bottom: 40px;
+            opacity: 0.95;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 18px 40px;
+            font-size: 18px;
+            font-weight: 600;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: white;
+            color: #667eea;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(255,255,255,0.3);
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 2px solid white;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .features {
+            background: white;
+            padding: 80px 20px;
+        }
+
+        .features-grid {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 40px;
+        }
+
+        .feature {
+            text-align: center;
+            padding: 30px;
+        }
+
+        .feature h3 {
+            font-size: 1.8em;
+            margin: 20px 0;
+            color: #667eea;
+        }
+
+        .feature p {
+            color: #6b7280;
+            line-height: 1.6;
+        }
+
+        .icon {
+            font-size: 3em;
+        }
+
+        .pricing {
+            background: #f9fafb;
+            padding: 80px 20px;
+            text-align: center;
+        }
+
+        .pricing h2 {
+            font-size: 3em;
+            margin-bottom: 60px;
+            color: #1f2937;
+        }
+
+        .pricing-grid {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+
+        .price-card {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .price-card.featured {
+            border: 3px solid #667eea;
+            transform: scale(1.05);
+        }
+
+        .price {
+            font-size: 3em;
+            font-weight: 800;
+            color: #667eea;
+            margin: 20px 0;
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2.5em; }
+            .hero p { font-size: 1.2em; }
+        }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <h1>⚡ QuickLinks</h1>
+        <p>Shorten URLs. Track Clicks. Grow Your Business.</p>
+        <p style="font-size: 1.2em; opacity: 0.9;">Start your 30-day free trial today - No credit card required!</p>
+        
+        <div class="cta-buttons">
+            <a href="/signup" class="btn btn-primary">🚀 Start Free Trial</a>
+            <a href="/login" class="btn btn-secondary">🔑 Login</a>
+        </div>
+    </div>
+
+    <div class="features">
+        <div class="features-grid">
+            <div class="feature">
+                <div class="icon">🔗</div>
+                <h3>URL Shortening</h3>
+                <p>Create short, memorable links that are easy to share and remember.</p>
+            </div>
+            <div class="feature">
+                <div class="icon">📊</div>
+                <h3>Advanced Analytics</h3>
+                <p>Track clicks, see where your traffic comes from, and measure performance.</p>
+            </div>
+            <div class="feature">
+                <div class="icon">📱</div>
+                <h3>QR Codes</h3>
+                <p>Generate QR codes for your links instantly - perfect for print materials.</p>
+            </div>
+            <div class="feature">
+                <div class="icon">⚡</div>
+                <h3>Fast Redirects</h3>
+                <p>Lightning-fast redirects ensure your visitors get where they need to go instantly.</p>
+            </div>
+            <div class="feature">
+                <div class="icon">🔒</div>
+                <h3>Secure & Reliable</h3>
+                <p>Enterprise-grade security and 99.9% uptime guarantee.</p>
+            </div>
+            <div class="feature">
+                <div class="icon">💼</div>
+                <h3>Team Collaboration</h3>
+                <p>Share links with your team and collaborate on campaigns together.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="pricing">
+        <h2>Simple, Transparent Pricing</h2>
+        <div class="pricing-grid">
+            <div class="price-card">
+                <h3>Free</h3>
+                <div class="price">$0<span style="font-size: 0.4em;">/mo</span></div>
+                <p>30-Day Trial</p>
+                <ul style="text-align: left; margin: 30px 0;">
+                    <li>✓ 3 shortened URLs</li>
+                    <li>✓ Basic analytics</li>
+                    <li>✓ QR codes</li>
+                </ul>
+                <a href="/signup" class="btn btn-secondary" style="width: 100%;">Start Free Trial</a>
+            </div>
+
+            <div class="price-card featured">
+                <div style="background: #667eea; color: white; padding: 10px; margin: -40px -40px 20px -40px; border-radius: 20px 20px 0 0;">
+                    <strong>⭐ MOST POPULAR</strong>
+                </div>
+                <h3>Pro</h3>
+                <div class="price">$9<span style="font-size: 0.4em;">/mo</span></div>
+                <p>Everything You Need</p>
+                <ul style="text-align: left; margin: 30px 0;">
+                    <li>✓ Unlimited URLs</li>
+                    <li>✓ Advanced analytics</li>
+                    <li>✓ Custom codes</li>
+                    <li>✓ Priority support</li>
+                </ul>
+                <a href="/signup" class="btn btn-primary" style="width: 100%;">Start Free Trial</a>
+            </div>
+
+            <div class="price-card">
+                <h3>Business</h3>
+                <div class="price">$29<span style="font-size: 0.4em;">/mo</span></div>
+                <p>For Teams & Agencies</p>
+                <ul style="text-align: left; margin: 30px 0;">
+                    <li>✓ Everything in Pro</li>
+                    <li>✓ Custom domain</li>
+                    <li>✓ API access</li>
+                    <li>✓ Team accounts</li>
+                </ul>
+                <a href="/signup" class="btn btn-secondary" style="width: 100%;">Contact Sales</a>
+            </div>
+        </div>
+    </div>
+
+    <div style="background: #1f2937; color: white; text-align: center; padding: 40px 20px;">
+        <p>&copy; 2025 QuickLinks. All rights reserved.</p>
+        <p style="margin-top: 10px; opacity: 0.7;">Built with ❤️ for creators and businesses</p>
+    </div>
+</body>
+</html>
