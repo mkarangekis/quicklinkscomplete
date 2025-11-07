@@ -1,145 +1,50 @@
 const express = require('express');
 const session = require('express-session');
-const bcrypt = require('bcrypt');
-const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-require('dotenv').config();
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Security middleware
-app.use(helmet({
-    contentSecurityPolicy: false // Allow inline scripts for demo
-}));
-
-// Rate limiting
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100 // limit each IP to 100 requests per windowMs
-});
-app.use('/api/', limiter);
-
-// Body parser
+// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
-// Session configuration
+// Simple session (in-memory for now - will work immediately)
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'your-secret-key-change-this-in-production',
+    secret: process.env.SESSION_SECRET || 'quicklinks-secret-key-2024',
     resave: false,
     saveUninitialized: false,
     cookie: { 
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+        secure: false, // Set to true when you have HTTPS
+        maxAge: 24 * 60 * 60 * 1000
     }
 }));
 
-// Database setup
-const db = new sqlite3.Database('./quicklinks.db', (err) => {
-    if (err) {
-        console.error('Database error:', err);
-    } else {
-        console.log('✓ Connected to database');
-        initDatabase();
-    }
+// In-memory storage (will work immediately, no database setup needed)
+let users = [];
+let urls = [];
+let clicks = [];
+
+// Create admin user on startup
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@quicklinks.com';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+
+users.push({
+    id: 1,
+    email: ADMIN_EMAIL,
+    password: ADMIN_PASSWORD, // Simple password for now
+    name: 'Admin',
+    role: 'admin',
+    plan: 'unlimited',
+    trialEnds: null,
+    createdAt: new Date().toISOString()
 });
 
-// Initialize database tables
-function initDatabase() {
-    // Users table
-    db.run(`
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            name TEXT,
-            role TEXT DEFAULT 'user',
-            plan TEXT DEFAULT 'free',
-            trial_ends DATETIME,
-            stripe_customer_id TEXT,
-            stripe_subscription_id TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            last_login DATETIME
-        )
-    `);
+console.log('✓ Admin user created');
+console.log('Email:', ADMIN_EMAIL);
+console.log('Password:', ADMIN_PASSWORD);
 
-    // URLs table
-    db.run(`
-        CREATE TABLE IF NOT EXISTS urls (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            long_url TEXT NOT NULL,
-            short_code TEXT UNIQUE NOT NULL,
-            title TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            expires_at DATETIME,
-            FOREIGN KEY (user_id) REFERENCES users(id)
-        )
-    `);
-
-    // Clicks table
-    db.run(`
-        CREATE TABLE IF NOT EXISTS clicks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            url_id INTEGER NOT NULL,
-            clicked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            ip_address TEXT,
-            user_agent TEXT,
-            referrer TEXT,
-            country TEXT,
-            FOREIGN KEY (url_id) REFERENCES urls(id)
-        )
-    `);
-
-    // Create admin user if doesn't exist
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@quicklinks.com';
-    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
-    
-    db.get('SELECT * FROM users WHERE email = ?', [adminEmail], (err, row) => {
-        if (!row) {
-            bcrypt.hash(adminPassword, 10, (err, hash) => {
-                db.run(
-                    'INSERT INTO users (email, password, name, role, plan) VALUES (?, ?, ?, ?, ?)',
-                    [adminEmail, hash, 'Admin', 'admin', 'unlimited'],
-                    (err) => {
-                        if (!err) {
-                            console.log('✓ Admin user created');
-                            console.log(`  Email: ${adminEmail}`);
-                            console.log(`  Password: ${adminPassword}`);
-                            console.log('  ⚠️  CHANGE THIS PASSWORD IMMEDIATELY!');
-                        }
-                    }
-                );
-            });
-        }
-    });
-
-    console.log('✓ Database initialized');
-}
-
-// Middleware to check if user is logged in
-function isAuthenticated(req, res, next) {
-    if (req.session.userId) {
-        next();
-    } else {
-        res.status(401).json({ error: 'Not authenticated' });
-    }
-}
-
-// Middleware to check if user is admin
-function isAdmin(req, res, next) {
-    if (req.session.userId && req.session.role === 'admin') {
-        next();
-    } else {
-        res.status(403).json({ error: 'Admin access required' });
-    }
-}
-
-// Helper function to generate short code
+// Helper functions
 function generateShortCode() {
     const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let code = '';
@@ -149,72 +54,71 @@ function generateShortCode() {
     return code;
 }
 
-// Helper function to check trial status
-function checkTrialStatus(user) {
-    if (user.plan !== 'free') return { active: true, expired: false };
-    
-    const trialEnd = new Date(user.trial_ends);
-    const now = new Date();
-    
-    return {
-        active: trialEnd > now,
-        expired: trialEnd <= now,
-        daysLeft: Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24))
-    };
+function findUser(email, password) {
+    return users.find(u => u.email === email && u.password === password);
 }
 
-// ============ AUTH ROUTES ============
+function isAuthenticated(req, res, next) {
+    if (req.session.userId) {
+        next();
+    } else {
+        res.status(401).json({ error: 'Not authenticated' });
+    }
+}
 
-// Sign up
-app.post('/api/auth/signup', async (req, res) => {
+function isAdmin(req, res, next) {
+    if (req.session.userId && req.session.role === 'admin') {
+        next();
+    } else {
+        res.status(403).json({ error: 'Admin access required' });
+    }
+}
+
+// Auth Routes
+app.post('/api/auth/signup', (req, res) => {
     const { email, password, name } = req.body;
 
     if (!email || !password) {
         return res.status(400).json({ error: 'Email and password required' });
     }
 
-    // Check if user exists
-    db.get('SELECT * FROM users WHERE email = ?', [email], async (err, row) => {
-        if (row) {
-            return res.status(400).json({ error: 'Email already registered' });
+    if (users.find(u => u.email === email)) {
+        return res.status(400).json({ error: 'Email already registered' });
+    }
+
+    const trialEnds = new Date();
+    trialEnds.setDate(trialEnds.getDate() + 30);
+
+    const user = {
+        id: users.length + 1,
+        email,
+        password, // Simple password storage for now
+        name,
+        role: 'user',
+        plan: 'free',
+        trialEnds: trialEnds.toISOString(),
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString()
+    };
+
+    users.push(user);
+
+    req.session.userId = user.id;
+    req.session.email = user.email;
+    req.session.role = user.role;
+
+    res.json({
+        success: true,
+        user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            plan: user.plan,
+            trialDays: 30
         }
-
-        // Hash password
-        const hash = await bcrypt.hash(password, 10);
-        
-        // 30-day trial
-        const trialEnds = new Date();
-        trialEnds.setDate(trialEnds.getDate() + 30);
-
-        // Create user
-        db.run(
-            'INSERT INTO users (email, password, name, trial_ends) VALUES (?, ?, ?, ?)',
-            [email, hash, name, trialEnds.toISOString()],
-            function(err) {
-                if (err) {
-                    return res.status(500).json({ error: 'Error creating user' });
-                }
-
-                req.session.userId = this.lastID;
-                req.session.email = email;
-                req.session.role = 'user';
-
-                res.json({
-                    success: true,
-                    user: {
-                        id: this.lastID,
-                        email,
-                        name,
-                        plan: 'free',
-                        trialDays: 30
-                    }
-                });
-            }
-        );
     });
 });
 
-// Login
 app.post('/api/auth/login', (req, res) => {
     const { email, password } = req.body;
 
@@ -222,330 +126,264 @@ app.post('/api/auth/login', (req, res) => {
         return res.status(400).json({ error: 'Email and password required' });
     }
 
-    db.get('SELECT * FROM users WHERE email = ?', [email], async (err, user) => {
-        if (!user) {
-            return res.status(401).json({ error: 'Invalid credentials' });
-        }
+    const user = findUser(email, password);
 
-        const match = await bcrypt.compare(password, user.password);
-        if (!match) {
-            return res.status(401).json({ error: 'Invalid credentials' });
-        }
+    if (!user) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+    }
 
-        // Update last login
-        db.run('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
+    user.lastLogin = new Date().toISOString();
 
-        // Set session
-        req.session.userId = user.id;
-        req.session.email = user.email;
-        req.session.role = user.role;
+    req.session.userId = user.id;
+    req.session.email = user.email;
+    req.session.role = user.role;
 
-        const trial = checkTrialStatus(user);
+    const trialEnd = new Date(user.trialEnds);
+    const now = new Date();
+    const daysLeft = user.trialEnds ? Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24)) : null;
 
-        res.json({
-            success: true,
-            user: {
-                id: user.id,
-                email: user.email,
-                name: user.name,
-                role: user.role,
-                plan: user.plan,
-                trial
-            }
-        });
-    });
-});
-
-// Logout
-app.post('/api/auth/logout', (req, res) => {
-    req.session.destroy();
-    res.json({ success: true });
-});
-
-// Get current user
-app.get('/api/auth/me', isAuthenticated, (req, res) => {
-    db.get('SELECT * FROM users WHERE id = ?', [req.session.userId], (err, user) => {
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-
-        const trial = checkTrialStatus(user);
-
-        res.json({
+    res.json({
+        success: true,
+        user: {
             id: user.id,
             email: user.email,
             name: user.name,
             role: user.role,
             plan: user.plan,
-            trial,
-            createdAt: user.created_at
-        });
+            trial: {
+                active: daysLeft > 0,
+                expired: daysLeft <= 0,
+                daysLeft: daysLeft > 0 ? daysLeft : 0
+            }
+        }
     });
 });
 
-// ============ URL ROUTES ============
+app.post('/api/auth/logout', (req, res) => {
+    req.session.destroy();
+    res.json({ success: true });
+});
 
-// Create shortened URL
+app.get('/api/auth/me', isAuthenticated, (req, res) => {
+    const user = users.find(u => u.id === req.session.userId);
+
+    if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+    }
+
+    const trialEnd = new Date(user.trialEnds);
+    const now = new Date();
+    const daysLeft = user.trialEnds ? Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24)) : null;
+
+    res.json({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        plan: user.plan,
+        trial: {
+            active: daysLeft > 0,
+            expired: daysLeft <= 0,
+            daysLeft: daysLeft > 0 ? daysLeft : 0
+        },
+        createdAt: user.createdAt
+    });
+});
+
+// URL Routes
 app.post('/api/shorten', isAuthenticated, (req, res) => {
-    const { longUrl, customCode } = req.body;
+    const { longUrl } = req.body;
     const userId = req.session.userId;
 
     if (!longUrl) {
         return res.status(400).json({ error: 'URL required' });
     }
 
-    // Check URL limit for free users
-    db.get('SELECT * FROM users WHERE id = ?', [userId], (err, user) => {
-        const trial = checkTrialStatus(user);
+    const user = users.find(u => u.id === userId);
+    const userUrls = urls.filter(u => u.userId === userId);
 
-        if (user.plan === 'free' && trial.expired) {
+    // Check limits
+    if (user.plan === 'free' && userUrls.length >= 3) {
+        const trialEnd = new Date(user.trialEnds);
+        const now = new Date();
+        if (trialEnd <= now) {
             return res.status(403).json({ error: 'Trial expired. Please upgrade.' });
         }
+        return res.status(403).json({ error: 'Free plan limit reached. Upgrade for unlimited URLs.' });
+    }
 
-        // Count user's URLs
-        db.get('SELECT COUNT(*) as count FROM urls WHERE user_id = ?', [userId], (err, result) => {
-            if (user.plan === 'free' && result.count >= 3) {
-                return res.status(403).json({ error: 'Free plan limit reached. Upgrade for unlimited URLs.' });
-            }
+    const shortCode = generateShortCode();
+    const baseUrl = process.env.BASE_URL || process.env.RAILWAY_PUBLIC_DOMAIN 
+        ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+        : `http://localhost:${PORT}`;
 
-            let shortCode = customCode || generateShortCode();
+    const url = {
+        id: urls.length + 1,
+        userId,
+        longUrl,
+        shortCode,
+        shortUrl: `${baseUrl}/${shortCode}`,
+        createdAt: new Date().toISOString(),
+        clicks: 0,
+        uniqueVisitors: 0
+    };
 
-            // Insert URL
-            const tryInsert = () => {
-                const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
-                
-                db.run(
-                    'INSERT INTO urls (user_id, long_url, short_code) VALUES (?, ?, ?)',
-                    [userId, longUrl, shortCode],
-                    function(err) {
-                        if (err) {
-                            if (err.message.includes('UNIQUE')) {
-                                shortCode = generateShortCode();
-                                tryInsert();
-                            } else {
-                                res.status(500).json({ error: 'Error creating URL' });
-                            }
-                        } else {
-                            res.json({
-                                success: true,
-                                data: {
-                                    id: this.lastID,
-                                    longUrl,
-                                    shortCode,
-                                    shortUrl: `${baseUrl}/${shortCode}`,
-                                    created: new Date().toISOString(),
-                                    clicks: 0
-                                }
-                            });
-                        }
-                    }
-                );
-            };
+    urls.push(url);
 
-            tryInsert();
-        });
+    res.json({
+        success: true,
+        data: url
     });
 });
 
-// Get user's URLs
 app.get('/api/urls', isAuthenticated, (req, res) => {
     const userId = req.session.userId;
+    const userUrls = urls.filter(u => u.userId === userId);
 
-    db.all(`
-        SELECT 
-            u.id,
-            u.long_url,
-            u.short_code,
-            u.title,
-            u.created_at,
-            COUNT(DISTINCT c.id) as clicks,
-            COUNT(DISTINCT c.ip_address) as unique_visitors
-        FROM urls u
-        LEFT JOIN clicks c ON u.id = c.url_id
-        WHERE u.user_id = ?
-        GROUP BY u.id
-        ORDER BY u.created_at DESC
-    `, [userId], (err, rows) => {
-        if (err) {
-            return res.status(500).json({ error: 'Database error' });
-        }
+    const urlsWithStats = userUrls.map(url => {
+        const urlClicks = clicks.filter(c => c.urlId === url.id);
+        const uniqueIPs = [...new Set(urlClicks.map(c => c.ip))];
 
-        const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
-        
-        const urls = rows.map(row => ({
-            id: row.id,
-            longUrl: row.long_url,
-            shortCode: row.short_code,
-            shortUrl: `${baseUrl}/${row.short_code}`,
-            title: row.title,
-            created: row.created_at,
-            clicks: row.clicks,
-            uniqueVisitors: row.unique_visitors
-        }));
-
-        res.json({ success: true, data: urls });
+        return {
+            ...url,
+            clicks: urlClicks.length,
+            uniqueVisitors: uniqueIPs.length
+        };
     });
+
+    res.json({ success: true, data: urlsWithStats });
 });
 
-// Delete URL
 app.delete('/api/urls/:id', isAuthenticated, (req, res) => {
     const { id } = req.params;
     const userId = req.session.userId;
 
-    db.run('DELETE FROM urls WHERE id = ? AND user_id = ?', [id, userId], function(err) {
-        if (err) {
-            return res.status(500).json({ error: 'Error deleting URL' });
-        }
+    const index = urls.findIndex(u => u.id == id && u.userId === userId);
 
-        if (this.changes === 0) {
-            return res.status(404).json({ error: 'URL not found' });
-        }
+    if (index === -1) {
+        return res.status(404).json({ error: 'URL not found' });
+    }
 
-        res.json({ success: true });
-    });
+    urls.splice(index, 1);
+    res.json({ success: true });
 });
 
-// ============ ADMIN ROUTES ============
-
-// Get all users (admin only)
-app.get('/api/admin/users', isAdmin, (req, res) => {
-    db.all(`
-        SELECT 
-            u.id,
-            u.email,
-            u.name,
-            u.role,
-            u.plan,
-            u.trial_ends,
-            u.created_at,
-            u.last_login,
-            COUNT(DISTINCT url.id) as total_urls,
-            COUNT(DISTINCT c.id) as total_clicks
-        FROM users u
-        LEFT JOIN urls url ON u.id = url.user_id
-        LEFT JOIN clicks c ON url.id = c.url_id
-        GROUP BY u.id
-        ORDER BY u.created_at DESC
-    `, [], (err, rows) => {
-        if (err) {
-            return res.status(500).json({ error: 'Database error' });
-        }
-
-        res.json({ success: true, data: rows });
-    });
-});
-
-// Get admin stats
+// Admin Routes
 app.get('/api/admin/stats', isAdmin, (req, res) => {
-    const stats = {};
+    const totalUsers = users.filter(u => u.role !== 'admin').length;
+    const paidUsers = users.filter(u => u.plan === 'pro' || u.plan === 'business').length;
+    const totalUrls = urls.length;
+    const totalClicks = clicks.length;
 
-    db.get('SELECT COUNT(*) as count FROM users WHERE role != "admin"', [], (err, row) => {
-        stats.totalUsers = row.count;
+    const today = new Date().toDateString();
+    const newUsersToday = users.filter(u => 
+        new Date(u.createdAt).toDateString() === today
+    ).length;
 
-        db.get('SELECT COUNT(*) as count FROM users WHERE plan = "pro"', [], (err, row) => {
-            stats.paidUsers = row.count;
+    const mrr = paidUsers * 9;
 
-            db.get('SELECT COUNT(*) as count FROM urls', [], (err, row) => {
-                stats.totalUrls = row.count;
-
-                db.get('SELECT COUNT(*) as count FROM clicks', [], (err, row) => {
-                    stats.totalClicks = row.count;
-
-                    db.get(`
-                        SELECT COUNT(*) as count FROM users 
-                        WHERE date(created_at) = date('now')
-                    `, [], (err, row) => {
-                        stats.newUsersToday = row.count;
-
-                        // Calculate MRR
-                        stats.mrr = stats.paidUsers * 9; // Assuming $9/month
-
-                        res.json({ success: true, data: stats });
-                    });
-                });
-            });
-        });
-    });
-});
-
-// Get all URLs (admin only)
-app.get('/api/admin/urls', isAdmin, (req, res) => {
-    db.all(`
-        SELECT 
-            u.id,
-            u.long_url,
-            u.short_code,
-            u.created_at,
-            usr.email as user_email,
-            COUNT(DISTINCT c.id) as clicks
-        FROM urls u
-        LEFT JOIN users usr ON u.user_id = usr.id
-        LEFT JOIN clicks c ON u.id = c.url_id
-        GROUP BY u.id
-        ORDER BY u.created_at DESC
-        LIMIT 100
-    `, [], (err, rows) => {
-        if (err) {
-            return res.status(500).json({ error: 'Database error' });
+    res.json({
+        success: true,
+        data: {
+            totalUsers,
+            paidUsers,
+            totalUrls,
+            totalClicks,
+            newUsersToday,
+            mrr
         }
-
-        const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
-        
-        const urls = rows.map(row => ({
-            id: row.id,
-            longUrl: row.long_url,
-            shortCode: row.short_code,
-            shortUrl: `${baseUrl}/${row.short_code}`,
-            userEmail: row.user_email,
-            created: row.created_at,
-            clicks: row.clicks
-        }));
-
-        res.json({ success: true, data: urls });
     });
 });
 
-// Update user plan (admin only)
+app.get('/api/admin/users', isAdmin, (req, res) => {
+    const usersWithStats = users
+        .filter(u => u.role !== 'admin')
+        .map(user => {
+            const userUrls = urls.filter(u => u.userId === user.id);
+            const userClicks = clicks.filter(c => {
+                const url = urls.find(u => u.id === c.urlId);
+                return url && url.userId === user.id;
+            });
+
+            return {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                role: user.role,
+                plan: user.plan,
+                trial_ends: user.trialEnds,
+                created_at: user.createdAt,
+                last_login: user.lastLogin,
+                total_urls: userUrls.length,
+                total_clicks: userClicks.length
+            };
+        });
+
+    res.json({ success: true, data: usersWithStats });
+});
+
+app.get('/api/admin/urls', isAdmin, (req, res) => {
+    const urlsWithUsers = urls.map(url => {
+        const user = users.find(u => u.id === url.userId);
+        const urlClicks = clicks.filter(c => c.urlId === url.id);
+
+        return {
+            id: url.id,
+            long_url: url.longUrl,
+            short_code: url.shortCode,
+            shortUrl: url.shortUrl,
+            created_at: url.createdAt,
+            user_email: user ? user.email : 'Unknown',
+            clicks: urlClicks.length
+        };
+    });
+
+    res.json({ success: true, data: urlsWithUsers });
+});
+
 app.put('/api/admin/users/:id/plan', isAdmin, (req, res) => {
     const { id } = req.params;
     const { plan } = req.body;
 
-    db.run('UPDATE users SET plan = ? WHERE id = ?', [plan, id], function(err) {
-        if (err) {
-            return res.status(500).json({ error: 'Error updating user' });
-        }
+    const user = users.find(u => u.id == id);
 
-        res.json({ success: true });
-    });
+    if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+    }
+
+    user.plan = plan;
+    res.json({ success: true });
 });
 
-// ============ REDIRECT ROUTE ============
-
+// Redirect Route
 app.get('/:shortCode', (req, res) => {
     const { shortCode } = req.params;
 
-    db.get('SELECT * FROM urls WHERE short_code = ?', [shortCode], (err, url) => {
-        if (!url) {
-            return res.status(404).send('URL not found');
-        }
+    // Skip if it's a page route
+    if (['login', 'signup', 'dashboard', 'admin'].includes(shortCode)) {
+        return res.sendFile(path.join(__dirname, 'public', `${shortCode}.html`));
+    }
 
-        // Log click
-        const ip = req.ip || req.connection.remoteAddress;
-        const userAgent = req.get('user-agent');
-        const referrer = req.get('referrer');
+    const url = urls.find(u => u.shortCode === shortCode);
 
-        db.run(
-            'INSERT INTO clicks (url_id, ip_address, user_agent, referrer) VALUES (?, ?, ?, ?)',
-            [url.id, ip, userAgent, referrer]
-        );
+    if (!url) {
+        return res.status(404).send('URL not found');
+    }
 
-        // Redirect
-        res.redirect(301, url.long_url);
+    // Log click
+    clicks.push({
+        id: clicks.length + 1,
+        urlId: url.id,
+        clickedAt: new Date().toISOString(),
+        ip: req.ip || req.connection.remoteAddress,
+        userAgent: req.get('user-agent'),
+        referrer: req.get('referrer')
     });
+
+    res.redirect(301, url.longUrl);
 });
 
-// ============ SERVE FRONTEND ============
-
+// Serve pages
 app.get('/', (req, res) => {
     if (req.session.userId) {
         res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
@@ -580,7 +418,10 @@ app.get('/admin', (req, res) => {
 app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'healthy',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        users: users.length,
+        urls: urls.length,
+        clicks: clicks.length
     });
 });
 
@@ -590,25 +431,14 @@ app.listen(PORT, '0.0.0.0', () => {
 ╔════════════════════════════════════════╗
 ║   QuickLinks Server Running! 🚀       ║
 ╠════════════════════════════════════════╣
-║   Port: ${PORT}                        ║
-║   Environment: ${process.env.NODE_ENV || 'development'}
+║   Port: ${PORT}                        
+║   Admin Email: ${ADMIN_EMAIL}
+║   Admin Password: ${ADMIN_PASSWORD}
 ║                                        ║
-║   Admin Login:                         ║
-║   Email: ${process.env.ADMIN_EMAIL || 'admin@quicklinks.com'}
-║   Password: ${process.env.ADMIN_PASSWORD || 'admin123'}
-║                                        ║
-║   ⚠️  Change admin password!          ║
+║   ✓ Server is healthy                 ║
+║   ✓ Ready to accept requests          ║
 ╚════════════════════════════════════════╝
     `);
-});
-
-// Graceful shutdown
-process.on('SIGINT', () => {
-    db.close((err) => {
-        if (err) console.error(err.message);
-        console.log('\n✓ Database connection closed');
-        process.exit(0);
-    });
 });
 
 module.exports = app;
