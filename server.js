@@ -7,20 +7,34 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static('public'));
 
-// Simple session (in-memory for now - will work immediately)
+// Serve static files with explicit MIME types
+app.use(express.static('public', {
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) {
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        } else if (filePath.endsWith('.css')) {
+            res.setHeader('Content-Type', 'text/css; charset=utf-8');
+        } else if (filePath.endsWith('.js')) {
+            res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+        } else if (filePath.endsWith('.json')) {
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        }
+    }
+}));
+
+// Simple session (in-memory for now)
 app.use(session({
     secret: process.env.SESSION_SECRET || 'quicklinks-secret-key-2024',
     resave: false,
     saveUninitialized: false,
     cookie: { 
-        secure: false, // Set to true when you have HTTPS
+        secure: false,
         maxAge: 24 * 60 * 60 * 1000
     }
 }));
 
-// In-memory storage (will work immediately, no database setup needed)
+// In-memory storage
 let users = [];
 let urls = [];
 let clicks = [];
@@ -32,7 +46,7 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 users.push({
     id: 1,
     email: ADMIN_EMAIL,
-    password: ADMIN_PASSWORD, // Simple password for now
+    password: ADMIN_PASSWORD,
     name: 'Admin',
     role: 'admin',
     plan: 'unlimited',
@@ -92,7 +106,7 @@ app.post('/api/auth/signup', (req, res) => {
     const user = {
         id: users.length + 1,
         email,
-        password, // Simple password storage for now
+        password,
         name,
         role: 'user',
         plan: 'free',
@@ -202,7 +216,6 @@ app.post('/api/shorten', isAuthenticated, (req, res) => {
     const user = users.find(u => u.id === userId);
     const userUrls = urls.filter(u => u.userId === userId);
 
-    // Check limits
     if (user.plan === 'free' && userUrls.length >= 3) {
         const trialEnd = new Date(user.trialEnds);
         const now = new Date();
@@ -355,13 +368,13 @@ app.put('/api/admin/users/:id/plan', isAdmin, (req, res) => {
     res.json({ success: true });
 });
 
-// Redirect Route
-app.get('/:shortCode', (req, res) => {
+// Redirect Route - must come before page routes
+app.get('/:shortCode', (req, res, next) => {
     const { shortCode } = req.params;
 
     // Skip if it's a page route
-    if (['login', 'signup', 'dashboard', 'admin'].includes(shortCode)) {
-        return res.sendFile(path.join(__dirname, 'public', `${shortCode}.html`));
+    if (['login', 'signup', 'dashboard', 'admin', 'pricing', 'features'].includes(shortCode)) {
+        return next();
     }
 
     const url = urls.find(u => u.shortCode === shortCode);
@@ -383,8 +396,9 @@ app.get('/:shortCode', (req, res) => {
     res.redirect(301, url.longUrl);
 });
 
-// Serve pages
+// Serve pages with explicit Content-Type headers
 app.get('/', (req, res) => {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
     if (req.session.userId) {
         res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
     } else {
@@ -393,10 +407,12 @@ app.get('/', (req, res) => {
 });
 
 app.get('/login', (req, res) => {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
 app.get('/signup', (req, res) => {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.sendFile(path.join(__dirname, 'public', 'signup.html'));
 });
 
@@ -404,6 +420,7 @@ app.get('/dashboard', (req, res) => {
     if (!req.session.userId) {
         return res.redirect('/login');
     }
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
@@ -411,6 +428,7 @@ app.get('/admin', (req, res) => {
     if (!req.session.userId || req.session.role !== 'admin') {
         return res.redirect('/login');
     }
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
