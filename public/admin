@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - QuickLinks</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f9fafb;
+        }
+
+        .navbar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .navbar h1 {
+            font-size: 2em;
+        }
+
+        .navbar .admin-badge {
+            background: rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .btn-light {
+            background: white;
+            color: #667eea;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-left: 4px solid #667eea;
+        }
+
+        .stat-card.revenue {
+            border-left-color: #10b981;
+        }
+
+        .stat-card.users {
+            border-left-color: #f59e0b;
+        }
+
+        .stat-card h3 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            font-weight: 800;
+        }
+
+        .stat-card.revenue h3 {
+            color: #10b981;
+        }
+
+        .stat-card.users h3 {
+            color: #f59e0b;
+        }
+
+        .stat-card p {
+            color: #6b7280;
+            font-size: 1.1em;
+        }
+
+        .stat-card .sub-stat {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #9ca3af;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .card h2 {
+            margin-bottom: 25px;
+            color: #1f2937;
+            font-size: 1.8em;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            border-bottom: 2px solid #e5e7eb;
+            margin-bottom: 30px;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            font-size: 16px;
+            font-weight: 600;
+            color: #6b7280;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        th {
+            background: #f9fafb;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        tr:hover {
+            background: #f9fafb;
+        }
+
+        .badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .badge-free {
+            background: #e5e7eb;
+            color: #4b5563;
+        }
+
+        .badge-pro {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .badge-admin {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .action-btn {
+            padding: 6px 12px;
+            font-size: 0.85em;
+            margin: 0 5px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+
+        @media (max-width: 768px) {
+            table {
+                font-size: 0.85em;
+            }
+            
+            th, td {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div>
+            <h1>👑 Admin Dashboard</h1>
+            <span class="admin-badge">🛡️ Administrator Access</span>
+        </div>
+        <div style="display: flex; gap: 15px; align-items: center;">
+            <span id="adminEmail"></span>
+            <button class="btn btn-light" onclick="logout()">Logout</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Key Metrics -->
+        <div class="stats-grid">
+            <div class="stat-card revenue">
+                <h3 id="mrr">$0</h3>
+                <p>Monthly Recurring Revenue</p>
+                <div class="sub-stat" id="mrrDetails">0 paid users × $9/mo</div>
+            </div>
+
+            <div class="stat-card users">
+                <h3 id="totalUsers">0</h3>
+                <p>Total Users</p>
+                <div class="sub-stat" id="newUsers">+0 today</div>
+            </div>
+
+            <div class="stat-card">
+                <h3 id="totalUrls" style="color: #667eea;">0</h3>
+                <p>Total URLs Created</p>
+                <div class="sub-stat" id="urlsToday">+0 today</div>
+            </div>
+
+            <div class="stat-card">
+                <h3 id="totalClicks" style="color: #8b5cf6;">0</h3>
+                <p>Total Clicks</p>
+                <div class="sub-stat" id="avgClickRate">0 avg per URL</div>
+            </div>
+
+            <div class="stat-card">
+                <h3 id="conversionRate" style="color: #ef4444;">0%</h3>
+                <p>Conversion Rate</p>
+                <div class="sub-stat">Free → Pro</div>
+            </div>
+
+            <div class="stat-card">
+                <h3 id="projectedMrr" style="color: #10b981;">$0</h3>
+                <p>Projected ARR</p>
+                <div class="sub-stat">If 10% convert</div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="card">
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('users')">👥 Users</button>
+                <button class="tab" onclick="switchTab('urls')">🔗 URLs</button>
+                <button class="tab" onclick="switchTab('revenue')">💰 Revenue</button>
+            </div>
+
+            <!-- Users Tab -->
+            <div id="users-tab" class="tab-content active">
+                <h2>User Management</h2>
+                <div style="overflow-x: auto;">
+                    <table id="usersTable">
+                        <thead>
+                            <tr>
+                                <th>Email</th>
+                                <th>Name</th>
+                                <th>Plan</th>
+                                <th>URLs</th>
+                                <th>Clicks</th>
+                                <th>Joined</th>
+                                <th>Last Login</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- URLs Tab -->
+            <div id="urls-tab" class="tab-content">
+                <h2>All Shortened URLs</h2>
+                <div style="overflow-x: auto;">
+                    <table id="urlsTable">
+                        <thead>
+                            <tr>
+                                <th>Short Code</th>
+                                <th>Long URL</th>
+                                <th>User</th>
+                                <th>Clicks</th>
+                                <th>Created</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Revenue Tab -->
+            <div id="revenue-tab" class="tab-content">
+                <h2>Revenue Analytics</h2>
+                
+                <div style="background: #f9fafb; padding: 30px; border-radius: 15px; margin-bottom: 30px;">
+                    <h3 style="margin-bottom: 20px; color: #374151;">Revenue Breakdown</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                        <div>
+                            <p style="color: #6b7280; margin-bottom: 5px;">Free Users</p>
+                            <p style="font-size: 2em; font-weight: 700; color: #667eea;" id="revFreeUsers">0</p>
+                        </div>
+                        <div>
+                            <p style="color: #6b7280; margin-bottom: 5px;">Pro Users</p>
+                            <p style="font-size: 2em; font-weight: 700; color: #10b981;" id="revProUsers">0</p>
+                        </div>
+                        <div>
+                            <p style="color: #6b7280; margin-bottom: 5px;">Current MRR</p>
+                            <p style="font-size: 2em; font-weight: 700; color: #f59e0b;" id="revCurrentMrr">$0</p>
+                        </div>
+                        <div>
+                            <p style="color: #6b7280; margin-bottom: 5px;">Annual Run Rate</p>
+                            <p style="font-size: 2em; font-weight: 700; color: #8b5cf6;" id="revArr">$0</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="background: #ecfdf5; border: 2px solid #10b981; padding: 25px; border-radius: 15px;">
+                    <h3 style="color: #065f46; margin-bottom: 15px;">💡 Growth Opportunity</h3>
+                    <p style="color: #047857; line-height: 1.6;" id="growthOpportunity"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let adminData = {
+            users: [],
+            urls: [],
+            stats: {}
+        };
+
+        // Load admin data
+        async function loadAdminData() {
+            try {
+                // Load stats
+                const statsRes = await fetch('/api/admin/stats');
+                const statsData = await statsRes.json();
+                
+                if (statsData.success) {
+                    adminData.stats = statsData.data;
+                    updateStats();
+                }
+
+                // Load users
+                const usersRes = await fetch('/api/admin/users');
+                const usersData = await usersRes.json();
+                
+                if (usersData.success) {
+                    adminData.users = usersData.data;
+                    renderUsers();
+                }
+
+                // Load URLs
+                const urlsRes = await fetch('/api/admin/urls');
+                const urlsData = await urlsRes.json();
+                
+                if (urlsData.success) {
+                    adminData.urls = urlsData.data;
+                    renderUrls();
+                }
+
+                // Load user info
+                const meRes = await fetch('/api/auth/me');
+                const meData = await meRes.json();
+                document.getElementById('adminEmail').textContent = meData.email;
+
+            } catch (error) {
+                console.error('Error loading data:', error);
+                window.location.href = '/login';
+            }
+        }
+
+        // Update stats
+        function updateStats() {
+            const stats = adminData.stats;
+            
+            document.getElementById('mrr').textContent = `$${stats.mrr || 0}`;
+            document.getElementById('mrrDetails').textContent = 
+                `${stats.paidUsers || 0} paid users × $9/mo`;
+            
+            document.getElementById('totalUsers').textContent = stats.totalUsers || 0;
+            document.getElementById('newUsers').textContent = `+${stats.newUsersToday || 0} today`;
+            
+            document.getElementById('totalUrls').textContent = stats.totalUrls || 0;
+            
+            document.getElementById('totalClicks').textContent = stats.totalClicks || 0;
+            const avgClicks = stats.totalUrls > 0 ? Math.round(stats.totalClicks / stats.totalUrls) : 0;
+            document.getElementById('avgClickRate').textContent = `${avgClicks} avg per URL`;
+            
+            const convRate = stats.totalUsers > 0 ? 
+                Math.round((stats.paidUsers / stats.totalUsers) * 100) : 0;
+            document.getElementById('conversionRate').textContent = `${convRate}%`;
+            
+            const freeUsers = stats.totalUsers - stats.paidUsers;
+            const projectedNew = Math.floor(freeUsers * 0.1);
+            const projected = (stats.paidUsers + projectedNew) * 9 * 12;
+            document.getElementById('projectedMrr').textContent = `$${Math.round(projected / 12)}`;
+
+            // Revenue tab
+            document.getElementById('revFreeUsers').textContent = freeUsers;
+            document.getElementById('revProUsers').textContent = stats.paidUsers;
+            document.getElementById('revCurrentMrr').textContent = `$${stats.mrr}`;
+            document.getElementById('revArr').textContent = `$${stats.mrr * 12}`;
+            
+            document.getElementById('growthOpportunity').innerHTML = `
+                You have <strong>${freeUsers} free users</strong>. <br><br>
+                If you convert <strong>10%</strong> (industry average), that's <strong>${projectedNew} new Pro users</strong> = 
+                <strong style="font-size: 1.3em;">+$${projectedNew * 9}/month</strong>!<br><br>
+                Total MRR would be: <strong style="font-size: 1.5em; color: #10b981;">$${stats.mrr + (projectedNew * 9)}/month</strong>
+            `;
+        }
+
+        // Render users table
+        function renderUsers() {
+            const tbody = document.querySelector('#usersTable tbody');
+            
+            if (adminData.users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">No users yet</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = adminData.users.map(user => `
+                <tr>
+                    <td>${user.email}</td>
+                    <td>${user.name || '-'}</td>
+                    <td><span class="badge badge-${user.plan}">${user.plan.toUpperCase()}</span></td>
+                    <td>${user.total_urls || 0}</td>
+                    <td>${user.total_clicks || 0}</td>
+                    <td>${new Date(user.created_at).toLocaleDateString()}</td>
+                    <td>${user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never'}</td>
+                    <td>
+                        ${user.role !== 'admin' ? `
+                            <select class="action-btn" onchange="changePlan(${user.id}, this.value)">
+                                <option value="${user.plan}" selected>${user.plan}</option>
+                                <option value="free">Free</option>
+                                <option value="pro">Pro</option>
+                                <option value="business">Business</option>
+                            </select>
+                        ` : '<span class="badge badge-admin">ADMIN</span>'}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Render URLs table
+        function renderUrls() {
+            const tbody = document.querySelector('#urlsTable tbody');
+            
+            if (adminData.urls.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No URLs yet</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = adminData.urls.map(url => `
+                <tr>
+                    <td><code>${url.shortCode}</code></td>
+                    <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${url.longUrl}</td>
+                    <td>${url.userEmail}</td>
+                    <td><strong>${url.clicks}</strong></td>
+                    <td>${new Date(url.created).toLocaleDateString()}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Change user plan
+        async function changePlan(userId, newPlan) {
+            if (!confirm(`Change user plan to ${newPlan}?`)) return;
+
+            try {
+                const response = await fetch(`/api/admin/users/${userId}/plan`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plan: newPlan })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('Plan updated successfully!');
+                    loadAdminData();
+                }
+            } catch (error) {
+                alert('Error updating plan');
+            }
+        }
+
+        // Switch tabs
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(tabName + '-tab').classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Logout
+        async function logout() {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            window.location.href = '/';
+        }
+
+        // Initialize
+        loadAdminData();
+
+        // Auto-refresh every 30 seconds
+        setInterval(loadAdminData, 30000);
+    </script>
+</body>
+</html>
